@@ -5,10 +5,12 @@ import pandas as pd
 from pathlib import Path
 import requests
 
+os.makedirs("logs", exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='load.log'
+    filename=os.path.join("logs", "load.log")
 )
 logger = logging.getLogger(__name__)
 
