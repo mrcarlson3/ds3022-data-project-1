@@ -4,6 +4,7 @@ import logging
 import pandas as pd
 from pathlib import Path
 import requests
+import time
 
 os.makedirs("logs", exist_ok=True)
 
@@ -15,11 +16,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+#found base url for data so I can pull directly without having to download
 BASE_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data"
 
 def download_parquet(cab: str, year: int, month: int, target_dir: Path) -> Path:
     """
     Download a parquet file from TLC if not already present locally.
+    Includes time pause to prevent website blocking.
     """
     filename = f"{cab}_tripdata_{year}-{month:02d}.parquet"
     url = f"{BASE_URL}/{filename}"
@@ -27,12 +30,18 @@ def download_parquet(cab: str, year: int, month: int, target_dir: Path) -> Path:
 
     if not out_path.exists():
         logger.info(f"Downloading {url}")
-        resp = requests.get(url, stream=True)
-        resp.raise_for_status()
-        with open(out_path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                f.write(chunk)
-        logger.info(f"Saved {filename} to {out_path}")
+        try:
+            resp = requests.get(url, stream=True, timeout=30)
+            resp.raise_for_status()
+            with open(out_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            logger.info(f"Saved {filename} to {out_path}")
+            # Add pause between downloads to prevent blocking
+            time.sleep(1)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to download {url}: {e}")
+            raise
     else:
         logger.info(f"File already exists: {out_path}")
 
@@ -77,7 +86,11 @@ def summarize_table(con, table: str):
         logger.error(f"Error summarizing {table}: {e}")
         print(f"Error summarizing {table}: {e}")
 
-def load_parquet_files(years=(2024,), cab_types=("yellow", "green")):
+def load_parquet_files(years=range(2015, 2025), cab_types=("yellow", "green")):
+    """
+    Load parquet files for specified years and cab types.
+    Default years is 2015-2024 (inclusive).
+    """
     con = None
     try:
         con = duckdb.connect(database="emissions.duckdb", read_only=False)
@@ -88,59 +101,89 @@ def load_parquet_files(years=(2024,), cab_types=("yellow", "green")):
 
         for cab in cab_types:
             all_files = []
+            total_downloads = len(years) * 12
+            current_download = 0
+            
+            print(f"\nProcessing {cab} taxi data for years {min(years)}-{max(years)}")
+            print(f"Total files to process: {total_downloads}")
+            
             for year in years:
                 for month in range(1, 13):
+                    current_download += 1
                     try:
+                        print(f"Progress: {current_download}/{total_downloads} - Processing {cab} {year}-{month:02d}")
                         fpath = download_parquet(cab, year, month, data_dir)
                         all_files.append(str(fpath))
                     except Exception as e:
                         logger.warning(f"Could not download {cab} {year}-{month:02d}: {e}")
+                        print(f"Warning: Could not download {cab} {year}-{month:02d}: {e}")
 
             if not all_files:
                 logger.warning(f"No files found for {cab}, skipping.")
                 continue
 
+            print(f"\nLoading {len(all_files)} files into DuckDB for {cab} table...")
+            
             # Load into DuckDB with trip_year + trip_month
+            # Using union_by_name=True to handle schema differences between files
             table_name = cab
             con.execute(f"""
                 CREATE OR REPLACE TABLE {table_name} AS
                 SELECT *,
                        CAST(regexp_extract(filename, '_(\\d{{4}})-', 1) AS INTEGER) AS trip_year,
                        CAST(regexp_extract(filename, '-(\\d{{2}})\\.parquet', 1) AS INTEGER) AS trip_month
-                FROM parquet_scan({all_files}, HIVE_PARTITIONING=0, FILENAME=1)
+                FROM parquet_scan({all_files}, HIVE_PARTITIONING=0, FILENAME=1, union_by_name=True)
             """)
             logger.info(f"Created/loaded table {table_name}")
 
             count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
             years_span = con.execute(f"SELECT MIN(trip_year), MAX(trip_year) FROM {table_name}").fetchone()
             logger.info(f"{cab.capitalize()} trips loaded: {count:,} rows spanning {years_span[0]}–{years_span[1]}")
+            print(f"{cab.capitalize()} trips loaded: {count:,} rows spanning {years_span[0]}–{years_span[1]}")
 
         # Load vehicle emissions CSV
         csv_path = data_dir / "vehicle_emissions.csv"
         if csv_path.exists():
+            print(f"\nLoading vehicle emissions data...")
             con.execute(f"""
                 CREATE OR REPLACE TABLE vehicle_emissions AS
                 SELECT * FROM read_csv_auto('{csv_path}', HEADER=TRUE)
             """)
             count = con.execute("SELECT COUNT(*) FROM vehicle_emissions").fetchone()[0]
             logger.info(f"Vehicle emissions loaded: {count:,} rows")
+            print(f"Vehicle emissions loaded: {count:,} rows")
         else:
             logger.warning("vehicle_emissions.csv not found in data/")
+            print("Warning: vehicle_emissions.csv not found in data/")
 
     except Exception as e:
         print(f"An error occurred: {e}")
         logger.error(f"An error occurred: {e}")
+        raise
     finally:
         if con is not None:
             con.close()
             logger.info("Closed DuckDB connection")
 
 if __name__ == "__main__":
-    load_parquet_files(years=(2024,))
+    print("=" * 60)
+    print("STARTING DATA LOADING PROCESS")
+    print("Loading NYC Taxi Data for years 2015-2024")
+    print("=" * 60)
+    
+    load_parquet_files(years=range(2015, 2025))
 
+    print("\n" + "=" * 60)
+    print("GENERATING DATA SUMMARIES")
+    print("=" * 60)
+    
     con = duckdb.connect(database='emissions.duckdb', read_only=True)
     for table in ["yellow", "green", "vehicle_emissions"]:
         try:
             summarize_table(con, table)
         except Exception as e:
             logger.warning(f"Could not summarize {table}: {e}")
+            print(f"Warning: Could not summarize {table}: {e}")
+    
+    con.close()
+    print("\nData loading process completed!")
