@@ -1,9 +1,9 @@
-taxi_co2:
+transform:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: ''
+      path: '../emissions.duckdb'
       schema: main
       threads: 4
       keepalives_idle: 0

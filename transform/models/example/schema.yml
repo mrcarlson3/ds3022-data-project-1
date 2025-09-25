@@ -1,0 +1,32 @@
+version: 2
+
+sources:
+  - name: emissions
+    description: "Raw taxi trip data from NYC TLC"
+    tables:
+      - name: yellow
+        description: "Yellow taxi trip records"
+      - name: green
+        description: "Green taxi trip records"
+      - name: vehicle_emissions
+        description: "Vehicle emissions data for CO2 calculations"
+
+models:
+  - name: taxi
+    description: "Enhanced taxi data with calculated columns for CO2 emissions, speed, and time-based metrics"
+    columns:
+      - name: taxi_type
+        description: "Type of taxi - yellow or green"
+      - name: co2_per_trip_kg
+        description: "CO2 emissions per trip in kilograms"
+      - name: avg_mph_per_trip
+        description: "Average speed in miles per hour for the trip"
+      - name: trip_hour
+        description: "Hour of day when trip started (0-23)"
+      - name: trip_day_of_week
+        description: "Day of week when trip started (1=Sunday, 7=Saturday)"
+      - name: week_number
+        description: "Week number of the year (1-52)"
+      - name: month
+        description: "Month of the year (1-12)"
+        
