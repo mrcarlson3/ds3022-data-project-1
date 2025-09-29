@@ -13,7 +13,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def get_connection(db_path: str = "emissions.duckdb"):
-    """Establish DuckDB connection with error handling."""
+    """Establishes a connection to a DuckDB database, logging success or failure."""
     try:
         con = duckdb.connect(db_path)
         logger.info(f"Connected to DuckDB: {db_path}")
@@ -23,14 +23,14 @@ def get_connection(db_path: str = "emissions.duckdb"):
         raise
 
 def get_datetime_columns(table: str):
-    """Get the correct datetime column names for yellow vs green tables."""
+    """Returns the correct pickup and dropoff datetime column names depending on whether the table is yellow or green taxi data."""
     if table == "yellow":
         return "tpep_pickup_datetime", "tpep_dropoff_datetime"
     else:
         return "lpep_pickup_datetime", "lpep_dropoff_datetime"
 
 def execute_cleanup(con, table: str, sql: str, description: str):
-    """Execute a cleanup SQL statement and report results."""
+    """Executes a SQL cleanup operation on a table, calculates how many rows were removed, and logs the result."""
     try:
         before_count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         con.execute(sql)
@@ -46,7 +46,7 @@ def execute_cleanup(con, table: str, sql: str, description: str):
         raise
 
 def remove_duplicates(con, table: str):
-    """Remove duplicate trips based on key identifying fields."""
+    """Removes duplicate taxi trips based on key trip fields by rebuilding the table with only distinct records."""
     pickup_col, dropoff_col = get_datetime_columns(table)
     
     # Create a temporary table with unique trips
@@ -83,22 +83,22 @@ def remove_duplicates(con, table: str):
     return removed
 
 def remove_zero_passengers(con, table: str):
-    """Remove trips with 0 passengers."""
+    """Deletes all trips with zero passengers from the given table."""
     sql = f"DELETE FROM {table} WHERE passenger_count = 0"
     return execute_cleanup(con, table, sql, "TABLES UPDATED TO REMOVE TRIPS WITH 0 PASSENGERS")
 
 def remove_zero_distance(con, table: str):
-    """Remove trips with 0 miles distance."""
+    """Deletes trips that have a recorded distance of zero miles."""
     sql = f"DELETE FROM {table} WHERE trip_distance = 0"
     return execute_cleanup(con, table, sql, "TABLES UPDATED TO REMOVE TRIPS 0 MILES IN LENGTH")
 
 def remove_long_distance(con, table: str):
-    """Remove trips greater than 100 miles."""
+    """Removes trips that are longer than 100 miles, assuming these are data errors or outliers."""
     sql = f"DELETE FROM {table} WHERE trip_distance > 100"
     return execute_cleanup(con, table, sql, "TABLES UPDATED TO REMOVE TRIPS GREATER THAN 100 MILES IN LENGTH")
 
 def remove_long_duration(con, table: str):
-    """Remove trips greater than 24 hours duration."""
+    """Removes trips lasting longer than 24 hours based on pickup and dropoff timestamps."""
     pickup_col, dropoff_col = get_datetime_columns(table)
     
     sql = f"""
@@ -108,7 +108,7 @@ def remove_long_duration(con, table: str):
     return execute_cleanup(con, table, sql, "TABLES UPDATED TO REMOVE TRIPS GREATER THAN 24 HOURS IN LENGTH")
 
 def clean_table(con, table: str):
-    """Execute all cleaning operations on a table."""
+    """Runs all cleaning steps (duplicates, zero passengers, zero distance, long trips, long durations) and reports before/after counts."""
     print(f"\n=== CLEANING TABLE: {table.upper()} ===")
     logger.info(f"Starting cleaning for: {table}")
     
@@ -134,7 +134,7 @@ def clean_table(con, table: str):
     logger.info(f"Cleaning complete for {table}: {total_removed:,} removed, {final_count:,} remaining")
 
 def verify_cleaning(con, table: str):
-    """Verify that all cleaning conditions have been met."""
+    """Runs validation tests to confirm that all cleaning rules have been enforced (no duplicates, no zero passengers, etc.)."""
     print(f"\n=== VERIFICATION TESTS FOR {table.upper()} ===")
     logger.info(f"Running verification for: {table}")
     
@@ -203,7 +203,7 @@ def verify_cleaning(con, table: str):
     return all_passed
 
 def table_exists(con, table: str):
-    """Check if a table exists in the database."""
+    """Checks whether a given table exists in the DuckDB database."""
     try:
         count = con.execute(f"""
             SELECT COUNT(*) FROM information_schema.tables 
@@ -214,7 +214,7 @@ def table_exists(con, table: str):
         return False
 
 def main():
-    """Main function to clean all taxi tables."""
+    """Main entry point that runs the cleaning and verification process for yellow and green taxi tables, with logging and error handling."""
     try:
         print("=" * 60)
         print("STARTING DATA CLEANING PROCESS")

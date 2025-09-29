@@ -21,8 +21,8 @@ BASE_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data"
 
 def download_parquet(cab: str, year: int, month: int, target_dir: Path) -> Path:
     """
-    Download a parquet file from TLC if not already present locally.
-    Includes time pause to prevent website blocking.
+    Downloads a monthly taxi trip parquet file from the TLC cloud storage if it does not exist locally,
+    saving it to the specified directory with error handling and a short pause between requests.
     """
     filename = f"{cab}_tripdata_{year}-{month:02d}.parquet"
     url = f"{BASE_URL}/{filename}"
@@ -38,7 +38,7 @@ def download_parquet(cab: str, year: int, month: int, target_dir: Path) -> Path:
                     f.write(chunk)
             logger.info(f"Saved {filename} to {out_path}")
             # Add pause between downloads to prevent blocking
-            time.sleep(1)
+            time.sleep(15)
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to download {url}: {e}")
             raise
@@ -49,7 +49,8 @@ def download_parquet(cab: str, year: int, month: int, target_dir: Path) -> Path:
 
 def summarize_table(con, table: str):
     """
-    Perform basic summarization (row count, min/max year, avg trip distance, etc.)
+    Generates a summary of a DuckDB table by counting rows, checking year/month ranges, 
+    and computing basic descriptive statistics like average trip distance and total fare.
     """
     try:
         # Row count
@@ -88,8 +89,8 @@ def summarize_table(con, table: str):
 
 def load_parquet_files(years=range(2015, 2025), cab_types=("yellow", "green")):
     """
-    Load parquet files for specified years and cab types.
-    Default years is 2015-2024 (inclusive).
+    Iterates through years and cab types to download, store, and load parquet files into DuckDB, 
+    while also creating structured tables with extracted year/month metadata and optionally loading vehicle emissions data.
     """
     con = None
     try:

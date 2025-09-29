@@ -1,6 +1,7 @@
--- File: transform/models/taxi.sql
 {{ config(materialized='table') }}
 
+-- Selects all yellow taxi trips, adding emissions estimates, speed per trip,
+-- and time-based features (hour, day of week, week number, month).
 with yellow_taxi as (
     select
         'yellow' as taxi_type,
@@ -32,6 +33,8 @@ with yellow_taxi as (
 
 ),
 
+-- Selects all green taxi trips, with similar features as yellow taxis but
+-- using a lower emissions factor to reflect more efficient vehicles.
 green_taxi as (
     select
         'green' as taxi_type,
@@ -63,6 +66,8 @@ green_taxi as (
 
 )
 
+-- Combines yellow and green taxi trips into a single unified dataset
+-- with consistent emissions and trip-level features.
 select * from yellow_taxi
 union all
 select * from green_taxi

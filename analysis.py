@@ -15,7 +15,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def get_connection(db_path: str = "emissions.duckdb"):
-    """Establish DuckDB connection with error handling."""
+    """Opens a DuckDB connection to the emissions database and logs the result, 
+    with error handling if the connection fails."""
     try:
         con = duckdb.connect(db_path)
         logger.info(f"Connected to DuckDB: {db_path}")
@@ -25,7 +26,9 @@ def get_connection(db_path: str = "emissions.duckdb"):
         raise
 
 def get_largest_carbon_trips(con):
-    """Find the single largest carbon producing trip for each taxi type."""
+    """Finds the single trip with the highest CO2 emissions for each taxi type 
+    and returns key trip details."""
+
     try:
         query = """
         WITH ranked_trips AS (
@@ -62,7 +65,8 @@ def get_largest_carbon_trips(con):
         raise
 
 def get_hourly_carbon_analysis(con):
-    """Analyze carbon emissions by hour of day for each taxi type."""
+    """Aggregates CO2 emissions by hour of day for each taxi type, 
+    reporting averages, totals, and trip counts."""
     try:
         query = """
         SELECT 
@@ -85,7 +89,8 @@ def get_hourly_carbon_analysis(con):
         raise
 
 def get_daily_carbon_analysis(con):
-    """Analyze carbon emissions by day of week for each taxi type."""
+    """Summarizes CO2 emissions by day of week for each taxi type, 
+    calculating average, total, and trip counts."""
     try:
         query = """
         SELECT 
@@ -108,7 +113,8 @@ def get_daily_carbon_analysis(con):
         raise
 
 def get_weekly_carbon_analysis(con):
-    """Analyze carbon emissions by week of year for each taxi type."""
+    """Analyzes emissions by week of year for each taxi type, 
+    computing average emissions, total CO2, and trip counts."""
     try:
         query = """
         SELECT 
@@ -131,7 +137,8 @@ def get_weekly_carbon_analysis(con):
         raise
 
 def get_monthly_carbon_analysis(con):
-    """Analyze carbon emissions by month for each taxi type."""
+    """Summarizes carbon emissions by month for each taxi type, 
+    including average CO2, totals, and trip counts."""
     try:
         query = """
         SELECT 
@@ -154,7 +161,9 @@ def get_monthly_carbon_analysis(con):
         raise
 
 def get_monthly_totals_for_plot(con):
-    """Get monthly CO2 totals for plotting."""
+    """Retrieves monthly CO2 totals by taxi type to support plotting 
+    time-series emissions trends."""
+
     try:
         query = """
         SELECT 
@@ -175,7 +184,8 @@ def get_monthly_totals_for_plot(con):
         raise
 
 def create_monthly_plot(monthly_data):
-    """Create a time-series plot of monthly CO2 totals."""
+    """Builds and saves a line plot showing monthly CO2 totals by taxi type, 
+    using Matplotlib for visualization."""
     try:
         # Convert to DataFrame for easier manipulation
         df = pd.DataFrame(monthly_data, columns=['taxi_type', 'month', 'total_co2_kg'])
@@ -213,18 +223,20 @@ def create_monthly_plot(monthly_data):
         raise
 
 def format_day_of_week(day_num):
-    """Convert day number to day name."""
+    """Converts a numeric day (1–7) into its weekday name for readability."""
+
     days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     return days[int(day_num) - 1] if 1 <= day_num <= 7 else f"Day {day_num}"
 
 def format_month(month_num):
-    """Convert month number to month name."""
+    """Converts a numeric month (1–12) into its month name for display purposes."""
     months = ['January', 'February', 'March', 'April', 'May', 'June',
               'July', 'August', 'September', 'October', 'November', 'December']
     return months[int(month_num) - 1] if 1 <= month_num <= 12 else f"Month {month_num}"
 
 def print_analysis_results(con):
-    """Print all analysis results."""
+    """Runs all analysis queries, prints summaries of largest trips, hourly, daily, 
+    weekly, and monthly patterns, and generates a monthly emissions plot."""
     try:
         print("=" * 80)
         print("NYC TAXI CARBON EMISSIONS ANALYSIS (2015-2024)")
@@ -318,7 +330,8 @@ def print_analysis_results(con):
         raise
 
 def main():
-    """Main function to run the analysis."""
+    """Coordinates the overall analysis workflow: connects to the database, 
+    runs analysis, prints results, and ensures the connection is closed."""
     con = None
     try:
         logger.info("Starting carbon emissions analysis")
