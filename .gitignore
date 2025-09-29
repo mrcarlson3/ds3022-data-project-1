@@ -4,3 +4,4 @@
 *.csv
 *.parquet
 Pipfile
+*.duckdb.tmp
